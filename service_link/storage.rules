@@ -1,0 +1,48 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is the owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Service images
+    match /services/{userId}/{serviceId}/{fileName} {
+      // Only service owner can read/write
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) &&
+                      request.resource.size < 5 * 1024 * 1024 && // 5 MB max
+                      request.resource.contentType.matches('image/.*');
+    }
+
+    // Profile pictures
+    match /profiles/{userId}/{fileName} {
+      // Only profile owner can read/write
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) &&
+                      request.resource.size < 2 * 1024 * 1024 && // 2 MB max
+                      request.resource.contentType.matches('image/.*');
+    }
+
+    // KYC documents
+    match /kyc/{userId}/{documentType}/{fileName} {
+      // Only document owner can read/write
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) &&
+                      request.resource.size < 10 * 1024 * 1024 && // 10 MB max
+                      (request.resource.contentType == 'application/pdf' ||
+                       request.resource.contentType.matches('image/.*'));
+    }
+
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
